@@ -12,9 +12,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import mqtt, { MqttClient } from 'mqtt'
+import mqtt from 'mqtt'
 
-const client = ref<MqttClient | null>(null);
+const client = ref<any>(null);
 const receivedMessage = ref('')
 
 client.value = mqtt.connect('ws://broker.emqx.io:8083/mqtt', {
