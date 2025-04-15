@@ -17,7 +17,7 @@ import mqtt from 'mqtt'
 const client = ref<any>(null);
 const receivedMessage = ref('')
 
-client.value = mqtt.connect('ws://broker.emqx.io:8083/mqtt', {
+client.value = mqtt.connect('/mqtt', {
   clientId: 'vue3_client_' + Math.random().toString(16).substr(2, 8)
 })
 

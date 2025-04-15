@@ -17,4 +17,14 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  server: {
+    proxy: {
+      '/mqtt': {
+        target: 'ws://broker.emqx.io:8083',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/mqtt/, '')
+      }
+    }
+  }
 })
