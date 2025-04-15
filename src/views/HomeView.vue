@@ -10,13 +10,12 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import mqttClient from '@/utils/mqttClient'
 import mqtt from 'mqtt'
 
-const client = ref(null);
-const receivedMessage = ref('')
+const client = ref<any>(null);
+const receivedMessage = ref<any>('')
 
 client.value = mqtt.connect('ws://broker.emqx.io:8083/mqtt', {
   clientId: 'vue3_client_' + Math.random().toString(16).substr(2, 8)
