@@ -26,7 +26,7 @@ client.value.on('connect', () => {
   client.value.subscribe('vue3/demo')
 })
 
-client.value.on('message', (topic, payload) => {
+client.value.on('message', (topic: any, payload: any) => {
   console.log('订阅当前主题：', topic, payload.toString());
   receivedMessage.value = payload.toString()
 })
@@ -39,7 +39,7 @@ const sendMessage = () => {
     client.value.publish('vue3/demo', message.value, {
       qos: 1,  // 设置QoS级别为1，确保消息至少传递一次
       retain: false
-    }, (error) => {
+    }, (error: any) => {
       if (error) {
         console.log('MQTT发布失败：', error);
       } else {
