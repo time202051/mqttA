@@ -52,7 +52,7 @@ const sendMessage = () => {
 
 // 断开连接
 onUnmounted(() => {
-  client.value.disconnect()
+  client.value.end()
 })
 </script>
 
