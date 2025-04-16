@@ -1,124 +1,195 @@
-<template>
-  <div>
-    <!-- <h1>MQTT通信示例</h1>
-    <input v-model="message" placeholder="输入要发送的消息" />
-    <button @click="sendMessage">发送</button>
-    <div>
-      <h2>接收到的消息：</h2>
-      <p>{{ receivedMessage }}</p>
-    </div> -->
-    <div class="chat-container">
-      <div class="chat-header">
-        <h1>聊天室</h1>
-      </div>
-      <div class="chat-messages">
-        <div v-for="(item, index) in messageList" :key="index" :class="['message-item', item.isMe ? 'me' : 'other']">
-          <div class="message-content">
-            {{ item.message }}
-          </div>
-          <div class="message-time">
-            {{ item.time }}
-          </div>
-        </div>
-      </div>
-      <div class="chat-input">
-        <input v-model="message" placeholder="输入消息..." @keyup.enter="sendMessage" />
-        <button @click="sendMessage">发送</button>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import mqtt from 'mqtt'
-import { time } from 'console';
+import EmojiPicker from 'vue3-emoji-picker'
+import 'vue3-emoji-picker/css'
 
+const commonSurnames = ['王', '李', '张', '刘', '陈', '杨', '赵', '黄', '周', '吴'];
+const commonGivenNames = ['伟', '芳', '娜', '敏', '静', '秀英', '丽', '强', '磊', '军'];
+
+const getRandomChineseName = () => {
+  const randomSurname = commonSurnames[Math.floor(Math.random() * commonSurnames.length)];
+  const randomGivenName = commonGivenNames[Math.floor(Math.random() * commonGivenNames.length)];
+  return randomSurname + randomGivenName;
+};
+
+const randomChineseName = getRandomChineseName();
 const client = ref<any>(null);
-const receivedMessage = ref('')
-const messageList = ref<any[]>([])
+const messageList = ref<any[]>([]);
+const clientId = 'client_' + Math.random().toString(16).substr(2, 8)
+const userName = ref(randomChineseName);
+const groupChatTitle = ref<string[]>([userName.value])
+const message = ref('')
+const showEmojiPicker = ref(false)
+const inputRef = ref<HTMLInputElement | null>(null)
 
 client.value = mqtt.connect("wss://broker.emqx.io:8084/mqtt", {
-  clientId: 'vue3_client_' + Math.random().toString(16).substr(2, 8),
-  protocol: 'wss',  // 明确指定协议
-  path: '/mqtt',   // 与vite.config.ts中的代理路径一致
-  port: 8084,      // 代理目标端口
-  rejectUnauthorized: false  // 如果使用自签名证书
+  clientId,
+  protocol: 'wss',
+  path: '/mqtt',
+  port: 8084,
+  rejectUnauthorized: false
 })
 
 client.value.on('connect', () => {
   console.log('连接成功')
-  client.value.subscribe('vue3/demo')
+  client.value.subscribe('vue3/chat')
 })
 
 client.value.on('message', (topic: any, payload: any) => {
-  console.log('订阅当前主题：', topic, payload.toString());
-  receivedMessage.value = payload.toString()
+  console.log('订阅当前主题：', topic, JSON.parse(payload.toString()));
+  const info = JSON.parse(payload.toString())
   messageList.value.push({
+    ...info,
     time: new Date().toLocaleString(),
-    message: payload.toString(),
-    isMe: true
+    message: info.message,
+    isMe: info.userName === userName.value,
+    isImage: info.isImage // 标记是否为图片
   })
+  if (!groupChatTitle.value.includes(info.userName)) {
+    groupChatTitle.value.push(info.userName)
+  }
 })
 
-const message = ref('') // 输入的消息
-// 发布
+// 发布消息
 const sendMessage = () => {
+  const messageData = {
+    userName: userName.value,
+    message: message.value,
+    isImage: false // 标记是否为图片
+  }
   if (message.value.trim()) {
-    // 发布
-    client.value.publish('vue3/demo', message.value, {
-      qos: 1,  // 设置QoS级别为1，确保消息至少传递一次
+    client.value.publish('vue3/chat', JSON.stringify(messageData), {
+      qos: 1,
       retain: false
     }, (error: any) => {
       if (error) {
         console.log('发布失败：', error);
       } else {
         console.log('发布成功', message.value);
-        message.value = ''  // 清空输入
+        message.value = ''
       }
     })
   }
 }
 
-const clientSend = ref<any>(null)
-// 订阅
-clientSend.value = mqtt.connect("wss://broker.emqx.io:8084/mqtt", {
-  clientId: 'vue3_client_' + Math.random().toString(16).substr(2, 8),
-  protocol: 'wss',  // 明确指定协议
-  path: '/mqtt',   // 与vite.config.ts中的代理路径一致
-  port: 8084,      // 代理目标端口
-  rejectUnauthorized: false  // 如果使用自签名证书
-})
+// 选择表情包
+const onSelectEmoji = (emoji: any) => {
+  message.value += emoji.i
+  inputRef.value?.focus()
+  showEmojiPicker.value = false
+}
 
-clientSend.value.on('connect', () => {
-  console.log('连接成功')
-  clientSend.value.subscribe('vue3/machine', (error: any) => {
-    if (!error) {
-      console.log('订阅成功')
+// 切换表情包选择器的显示/隐藏
+const toggleEmojiPicker = () => {
+  showEmojiPicker.value = !showEmojiPicker.value
+}
+
+// 选择图片并发送
+const sendImage = (event: Event) => {
+  const fileInput = event.target as HTMLInputElement
+  if (fileInput.files && fileInput.files[0]) {
+    const file = fileInput.files[0]
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64Image = reader.result as string
+      const messageData = {
+        userName: userName.value,
+        message: base64Image,
+        isImage: true // 标记为图片
+      }
+      client.value.publish('vue3/chat', JSON.stringify(messageData), {
+        qos: 1,
+        retain: false
+      }, (error: any) => {
+        if (error) {
+          console.log('图片发送失败：', error);
+        } else {
+          console.log('图片发送成功');
+        }
+      })
     }
-  })
-})
+    reader.readAsDataURL(file)
+  }
+}
 
-clientSend.value.on('message', (topic: any, payload: any) => {
-  console.log('订阅当前主题：', topic, payload.toString());
-  // receivedMessage.value = payload.toString()
-  messageList.value.push({
-    time: new Date().toLocaleString(),
-    message: payload.toString(),
-    isMe: false
-  })
-})
+const getLastChar = (name: string) => {
+  return name.slice(-1) // 提取最后一个字
+}
 
 
+const chatMessagesRef = ref<HTMLDivElement | null>(null)
+const handleInputFocus = () => {
+  // console.log('focus');
+  // if (chatMessagesRef.value) {
+  //   // 使用 nextTick 确保 DOM 更新完成后再滚动
+  //   nextTick(() => {
+  //     chatMessagesRef.value!.scrollTop = chatMessagesRef.value!.scrollHeight
+  //   })
+  // }
+}
+// 监听 messageList 的变化，滚动到最下方
+watch(messageList, () => {
+  if (chatMessagesRef.value) {
+    // 使用 nextTick 确保 DOM 更新完成后再滚动
+    nextTick(() => {
+      chatMessagesRef.value!.scrollTop = chatMessagesRef.value!.scrollHeight
+    })
+  }
+}, { deep: true })
 
-// 断开连接
 onUnmounted(() => {
   client.value.end()
 })
 </script>
+
+<template>
+  <div>
+    <div class="chat-container">
+      <div class="chat-header">
+        <h3>{{ groupChatTitle.join() }}的匿名聊天室</h3>
+      </div>
+      <div ref="chatMessagesRef" class="chat-messages">
+        <div v-for="(item, index) in messageList" :key="index" :class="['message-item', item.isMe ? 'me' : 'other']">
+          <!-- 头像 -->
+          <div class="avatar" v-if="!item.isMe">
+            {{ getLastChar(item.userName) }}
+          </div>
+          <!-- 消息内容 -->
+          <div v-if="item.isImage" class="message-content">
+            <el-image style="width: 100px; height: 100px" :src="item.message" :zoom-rate="1.2" :max-scale="7"
+              :min-scale="0.2" :preview-src-list="[item.message]" show-progress :initial-index="1" fit="cover"
+              hide-on-click-modal />
+          </div>
+          <div v-else class="message-content">
+            <span v-html="item.message"></span>
+          </div>
+          <!-- 消息时间 -->
+          <div class="message-time">
+            {{ item.time }}
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-container">
+        <div class="chat-input">
+          <input ref="inputRef" v-model="message" placeholder="输入消息..." @keyup.enter="sendMessage"
+            @focus="handleInputFocus" />
+          <button class="emoji-button" @click="toggleEmojiPicker">😀</button>
+          <input type="file" accept="image/*" @change="sendImage" style="display: none;" id="fileInput" />
+          <label for="fileInput" class="image-button">📷</label>
+        </div>
+        <button class="send-button" @click="sendMessage">发送</button>
+        <div v-if="showEmojiPicker" class="emoji-picker-container">
+          <EmojiPicker :native="true" @select="onSelectEmoji" hide-search hide-group-names display-recent
+            disable-sticky-group-names disable-skin-tones />
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <style scoped>
 .chat-container {
-  /* min-width: 500px; */
   margin: 0 auto;
   height: 100vh;
   width: 100%;
@@ -131,7 +202,7 @@ onUnmounted(() => {
 .chat-header {
   background-color: #42b983;
   color: white;
-  padding: 15px;
+  padding: 10px;
   text-align: center;
 }
 
@@ -180,77 +251,59 @@ onUnmounted(() => {
   margin-top: 5px;
 }
 
-.chat-input {
+.chat-input-container {
   display: flex;
-  padding: 10px;
+  align-items: flex-end;
+  padding: 8px;
   background-color: white;
   border-top: 1px solid #ddd;
+  position: relative;
+}
+
+.chat-input {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  margin-right: 10px;
 }
 
 .chat-input input {
   flex: 1;
   padding: 10px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 8px;
   margin-right: 10px;
 }
 
-.chat-input button {
+.emoji-button {
+  padding: 10px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.send-button {
   padding: 10px 20px;
   background-color: #42b983;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
-.chat-input button:hover {
+.send-button:hover {
   background-color: #3aa876;
 }
-</style>
-<!-- <template>
-  <div>
-    <h1>MQTT通信示例</h1>
-    <input v-model="message" placeholder="输入要发送的消息" />
-    <button @click="sendMessage">发送</button>
-    <div>
-      <h2>接收到的消息：</h2>
-      <p>{{ receivedMessage }}</p>
-    </div>
-  </div>
-</template>
 
-<script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import mqttClient from '@/utils/mqttClient'
-
-const message = ref('')
-const receivedMessage = ref('')
-
-// 连接MQTT
-mqttClient.connect('ws://broker.emqx.io:8083/mqtt', {
-  clientId: 'vue3_client_' + Math.random().toString(16).substr(2, 8)
-})
-
-// 订阅主题
-onMounted(() => {
-  mqttClient.subscribe('vue3/demo', (msg) => {
-    console.log('接受到返回的消息：', msg);
-
-    receivedMessage.value = msg
-  })
-})
-
-// 发送消息
-const sendMessage = () => {
-  if (message.value.trim()) {
-    mqttClient.publish('vue3/demo', message.value)
-    message.value = ''
-  }
+.emoji-picker-container {
+  position: absolute;
+  bottom: 60px;
+  right: 10px;
+  z-index: 10;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-
-// 断开连接
-onUnmounted(() => {
-  mqttClient.disconnect()
-})
-</script> -->
+</style>
