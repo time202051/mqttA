@@ -91,7 +91,7 @@ clientSend.value = mqtt.connect("wss://broker.emqx.io:8084/mqtt", {
 })
 
 clientSend.value.on('connect', () => {
-  console.log('MQTT连接成功')
+  console.log('连接成功')
   clientSend.value.subscribe('vue3/machine', (error: any) => {
     if (!error) {
       console.log('订阅成功')
