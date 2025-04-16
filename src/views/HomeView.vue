@@ -9,7 +9,7 @@
     </div> -->
     <div class="chat-container">
       <div class="chat-header">
-        <h1>MQTT 聊天室</h1>
+        <h1>聊天室</h1>
       </div>
       <div class="chat-messages">
         <div v-for="(item, index) in messageList" :key="index" :class="['message-item', item.isMe ? 'me' : 'other']">
