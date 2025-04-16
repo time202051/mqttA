@@ -47,7 +47,7 @@ client.value = mqtt.connect("wss://broker.emqx.io:8084/mqtt", {
 })
 
 client.value.on('connect', () => {
-  console.log('MQTT连接成功')
+  console.log('连接成功')
   client.value.subscribe('vue3/demo')
 })
 
@@ -71,9 +71,9 @@ const sendMessage = () => {
       retain: false
     }, (error: any) => {
       if (error) {
-        console.log('MQTT发布失败：', error);
+        console.log('发布失败：', error);
       } else {
-        console.log('MQTT发布成功', message.value);
+        console.log('发布成功', message.value);
         message.value = ''  // 清空输入
       }
     })
@@ -94,7 +94,7 @@ clientSend.value.on('connect', () => {
   console.log('MQTT连接成功')
   clientSend.value.subscribe('vue3/machine', (error: any) => {
     if (!error) {
-      console.log('MQTT订阅成功')
+      console.log('订阅成功')
     }
   })
 })
