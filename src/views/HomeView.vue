@@ -17,11 +17,11 @@ import mqtt from 'mqtt'
 const client = ref<any>(null);
 const receivedMessage = ref('')
 
-client.value = mqtt.connect('/mqtt', {
+client.value = mqtt.connect("wss://broker.emqx.io:8084/mqtt", {
   clientId: 'vue3_client_' + Math.random().toString(16).substr(2, 8),
-  protocol: 'ws',  // 明确指定协议
+  protocol: 'wss',  // 明确指定协议
   path: '/mqtt',   // 与vite.config.ts中的代理路径一致
-  port: 8083,      // 代理目标端口
+  port: 8084,      // 代理目标端口
   rejectUnauthorized: false  // 如果使用自签名证书
 })
 

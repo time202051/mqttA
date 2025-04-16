@@ -18,14 +18,14 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: {
-      '/mqtt': {
-        // target: 'ws://broker.emqx.io:8083',
-        target: 'wss://broker.emqx.io:8084',
-        changeOrigin: true,
-        ws: true,
-        rewrite: (path) => path.replace(/^\/mqtt/, '')
-      }
-    }
+    // proxy: {
+    //   '/mqtt': {
+    //     // target: 'ws://broker.emqx.io:8083',
+    //     target: 'wss://broker.emqx.io:8084',
+    //     changeOrigin: true,
+    //     ws: true,
+    //     rewrite: (path) => path.replace(/^\/mqtt/, '')
+    //   }
+    // }
   }
 })
