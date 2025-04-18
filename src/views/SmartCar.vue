@@ -22,7 +22,7 @@
             </div>
             <div class="input-container">
                 <el-input v-model="input" style="width: 240px" placeholder="请输入指令" clearable />
-                <el-button type="primary" @click="sendCommandHandler">发送</el-button>
+                <el-button type="primary" @click="sendCommandHandler" :disabled="!input">发送</el-button>
             </div>
             <div class="qh-container">
                 <!-- 前进按钮 -->
