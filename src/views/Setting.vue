@@ -55,5 +55,6 @@ const navigateTo = (path: string) => {
     position: fixed;
     right: 20px;
     top: 15px;
+    z-index: 999999;
 }
 </style>

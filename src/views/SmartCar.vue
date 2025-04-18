@@ -20,6 +20,10 @@
                     </el-icon>
                 </el-button>
             </div>
+            <div class="input-container">
+                <el-input v-model="input" style="width: 240px" placeholder="请输入指令" clearable />
+                <el-button type="primary" @click="sendCommandHandler">发送</el-button>
+            </div>
             <div class="qh-container">
                 <!-- 前进按钮 -->
                 <el-button class="control-button forward" @mousedown="startMove('forward')" @mouseup="stopMove"
@@ -117,6 +121,15 @@ const startTurn = (direction: string) => {
 // 停止转向
 const stopTurn = () => {
     sendCommand('straight') // 恢复直行
+}
+
+
+const input = ref('') // 输入框内容
+
+// 输入框发送指令 （esp8266接收文本，可以通过文本自定义映射任何事件逻辑）
+const sendCommandHandler = () => {
+    sendCommand(input.value)
+    input.value = '' // 清空输入框内容
 }
 
 // 组件挂载时连接 MQTT
@@ -230,6 +243,13 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+}
+
+.input-container {
+    transform: rotate(-90deg);
+    /* 旋转 90 度 */
+    margin: 20px 0;
+    /* 调整间距 */
 }
 
 :deep(.el-button) {
