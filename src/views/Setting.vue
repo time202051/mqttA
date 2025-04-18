@@ -20,17 +20,17 @@
 <script setup lang="ts">
 import { Setting } from '@element-plus/icons-vue'
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, type RouteRecordRaw } from 'vue-router'
 
 const router = useRouter()
 
 // 递归生成菜单项
-const generateMenuItems = (routes: any[]) => {
-    const items: any[] = []
+const generateMenuItems = (routes: readonly RouteRecordRaw[]) => {
+    const items: { name: string; path: string }[] = []
     routes.forEach(route => {
         if (route.name && route.path) {
             items.push({
-                name: route.name,
+                name: route.name as string,
                 path: route.path
             })
         }
@@ -42,7 +42,7 @@ const generateMenuItems = (routes: any[]) => {
 }
 
 // 获取所有路由并生成菜单项
-const menuItems = computed(() => generateMenuItems(router.options?.routes))
+const menuItems = computed(() => generateMenuItems(router.options.routes))
 
 // 跳转到指定页面
 const navigateTo = (path: string) => {
