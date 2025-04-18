@@ -43,7 +43,12 @@
         </div>
         <!-- 日志区域 -->
         <div class="log-container">
-            <h3>日志</h3>
+            <div class="log-header">
+                <h3>日志</h3>
+                <el-icon @click="clearLogs">
+                    <Delete />
+                </el-icon>
+            </div>
             <el-scrollbar class="log-scrollbar">
                 <div v-for="(log, index) in logs" :key="index" class="log-item">
                     {{ log }}
@@ -56,7 +61,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import mqtt from 'mqtt'
-import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Delete } from '@element-plus/icons-vue'
 
 const client = ref<any>(null)
 const logs = ref<string[]>([]) // 日志列表
@@ -125,7 +130,10 @@ const stopTurn = () => {
 
 
 const input = ref('') // 输入框内容
-
+// 清空日志
+const clearLogs = () => {
+    logs.value = []
+}
 // 输入框发送指令 （esp8266接收文本，可以通过文本自定义映射任何事件逻辑）
 const sendCommandHandler = () => {
     sendCommand(input.value)
@@ -223,6 +231,13 @@ onUnmounted(() => {
     top: 50%;
     transform: translate(-50%, -50%) rotate(-90deg);
     transform-origin: center center;
+}
+
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
 }
 
 .log-scrollbar {
