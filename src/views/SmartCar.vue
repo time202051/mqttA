@@ -1,6 +1,6 @@
 <template>
     <div class="smart-car-container">
-        <h1 class="title">智能小车遥控器</h1>
+        <!-- <h1 class="title">智能小车遥控器</h1> -->
         <div class="control-panel">
             <!-- 右拐按钮 -->
             <div class="lr-container">
@@ -213,9 +213,9 @@ onUnmounted(() => {
     padding: 16px;
     position: fixed;
     left: 0;
-    top: 50%;
-    transform: translateY(-50%) rotate(-90deg);
-
+    top: 65%;
+    transform: rotate(-90deg);
+    transform-origin: left top;
 }
 
 .log-scrollbar {
@@ -246,10 +246,12 @@ onUnmounted(() => {
 }
 
 .input-container {
-    transform: rotate(-90deg);
-    /* 旋转 90 度 */
     margin: 20px 0;
-    /* 调整间距 */
+    position: fixed;
+    right: 0;
+    top: 30%;
+    transform: rotate(-90deg);
+    transform-origin: right bottom;
 }
 
 :deep(.el-button) {
