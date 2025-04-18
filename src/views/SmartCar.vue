@@ -1,6 +1,6 @@
 <template>
     <div class="smart-car-container">
-        <!-- <h1 class="title">智能小车遥控器</h1> -->
+        <div class="title">智能小车遥控器</div>
         <div class="control-panel">
             <!-- 右拐按钮 -->
             <div class="lr-container">
@@ -159,6 +159,11 @@ onUnmounted(() => {
     font-size: 24px;
     margin-bottom: 20px;
     color: #333;
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translate(0%, 220%) rotate(-90deg);
+    transform-origin: left top;
 }
 
 .control-panel {
@@ -208,15 +213,16 @@ onUnmounted(() => {
 .log-container {
     margin-top: 20px;
     width: 400px;
+    height: 245px;
     background-color: white;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     padding: 16px;
     position: fixed;
-    left: 0;
+    left: 50%;
     top: 50%;
-    transform: translateY(300%) rotate(-90deg);
-    transform-origin: left top;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    transform-origin: center center;
 }
 
 .log-scrollbar {
