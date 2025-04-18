@@ -182,6 +182,7 @@ onUnmounted(() => {
     justify-content: center;
     border-radius: 50%;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 999999;
 }
 
 .forward {
@@ -213,8 +214,8 @@ onUnmounted(() => {
     padding: 16px;
     position: fixed;
     left: 0;
-    top: 65%;
-    transform: rotate(-90deg);
+    top: 50%;
+    transform: translateY(300%) rotate(-90deg);
     transform-origin: left top;
 }
 
@@ -249,8 +250,8 @@ onUnmounted(() => {
     margin: 20px 0;
     position: fixed;
     right: 0;
-    top: 30%;
-    transform: rotate(-90deg);
+    top: 50%;
+    transform: translateY(-630%) rotate(-90deg);
     transform-origin: right bottom;
 }
 
