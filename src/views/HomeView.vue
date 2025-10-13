@@ -1,34 +1,117 @@
+<template>
+  <div>
+    <div class="chat-container">
+      <div class="chat-header">
+        <div class="header-title">
+          <!-- <span class="header-names">{{ groupChatTitle.join() }}</span> -->
+          <span class="header-meta">{{ userName }}的匿名聊天室（在线：{{ onlineCount }}）</span>
+        </div>
+      </div>
+      <div ref="chatMessagesRef" class="chat-messages">
+        <div
+          v-for="(item, index) in messageList"
+          :key="index"
+          :class="['message-item', item.isMe ? 'me' : 'other']"
+        >
+          <!-- 头像 -->
+          <div class="avatar" v-if="!item.isMe">
+            {{ item.userName }}
+          </div>
+          <!-- 消息内容 -->
+          <div v-if="item.isImage" class="message-content">
+            <el-image
+              style="width: 100px; height: 100px"
+              :src="item.message"
+              :zoom-rate="1.2"
+              :max-scale="7"
+              :min-scale="0.2"
+              :preview-src-list="[item.message]"
+              show-progress
+              :initial-index="1"
+              fit="cover"
+              hide-on-click-modal
+            />
+          </div>
+          <div v-else class="message-content">
+            <span v-html="item.message"></span>
+          </div>
+          <!-- 消息时间 -->
+          <div class="message-time">
+            {{ item.time }}
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-container">
+        <div class="chat-input">
+          <input
+            ref="inputRef"
+            v-model="message"
+            placeholder="输入消息..."
+            @keyup.enter="sendMessage"
+            @focus="handleInputFocus"
+          />
+          <button class="emoji-button" @click="toggleEmojiPicker">😀</button>
+          <input
+            type="file"
+            accept="image/*"
+            @change="sendImage"
+            style="display: none"
+            id="fileInput"
+          />
+          <label for="fileInput" class="image-button">📷</label>
+        </div>
+        <button class="send-button" @click="sendMessage">发送</button>
+        <div v-if="showEmojiPicker" class="emoji-picker-container">
+          <EmojiPicker
+            :native="true"
+            @select="onSelectEmoji"
+            hide-search
+            hide-group-names
+            display-recent
+            disable-sticky-group-names
+            disable-skin-tones
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import mqtt from 'mqtt'
 import EmojiPicker from 'vue3-emoji-picker'
 import 'vue3-emoji-picker/css'
+import { getRandomChineseName } from '@/utils/randomChineseName'
 
-const commonSurnames = ['王', '李', '张', '刘', '陈', '杨', '赵', '黄', '周', '吴'];
-const commonGivenNames = ['伟', '芳', '娜', '敏', '静', '秀英', '丽', '强', '磊', '军'];
+const STORAGE_KEYS = {
+  messages: 'chat_messages',
+  users: 'chat_users',
+  me: 'chat_userName',
+}
+const MAX_CACHE = 500
 
-const getRandomChineseName = () => {
-  const randomSurname = commonSurnames[Math.floor(Math.random() * commonSurnames.length)];
-  const randomGivenName = commonGivenNames[Math.floor(Math.random() * commonGivenNames.length)];
-  return randomSurname + randomGivenName;
-};
-
-const randomChineseName = getRandomChineseName();
-const client = ref<any>(null);
-const messageList = ref<any[]>([]);
+const randomChineseName = getRandomChineseName()
+const client = ref<any>(null)
+const messageList = ref<any[]>([])
 const clientId = 'client_' + Math.random().toString(16).substr(2, 8)
-const userName = ref(randomChineseName);
+const storedName = localStorage.getItem(STORAGE_KEYS.me)
+const userName = ref(storedName || randomChineseName)
+if (!storedName) {
+  localStorage.setItem(STORAGE_KEYS.me, userName.value)
+}
 const groupChatTitle = ref<string[]>([userName.value])
+const onlineCount = computed(() => groupChatTitle.value.length)
 const message = ref('')
 const showEmojiPicker = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
 
-client.value = mqtt.connect("wss://broker.emqx.io:8084/mqtt", {
+client.value = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
   clientId,
   protocol: 'wss',
   path: '/mqtt',
   port: 8084,
-  rejectUnauthorized: false
+  rejectUnauthorized: false,
 })
 
 client.value.on('connect', () => {
@@ -37,39 +120,72 @@ client.value.on('connect', () => {
 })
 
 client.value.on('message', (topic: any, payload: any) => {
-  console.log('订阅当前主题：', topic, JSON.parse(payload.toString()));
+  console.log('订阅当前主题：', topic, JSON.parse(payload.toString()))
   const info = JSON.parse(payload.toString())
   messageList.value.push({
     ...info,
     time: new Date().toLocaleString(),
     message: info.message,
     isMe: info.userName === userName.value,
-    isImage: info.isImage // 标记是否为图片
+    isImage: info.isImage, // 标记是否为图片
   })
   if (!groupChatTitle.value.includes(info.userName)) {
     groupChatTitle.value.push(info.userName)
   }
 })
 
+onMounted(() => {
+  // 恢复本地缓存
+  try {
+    const cachedMsgs = JSON.parse(localStorage.getItem(STORAGE_KEYS.messages) || '[]')
+    const cachedUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.users) || '[]')
+    if (Array.isArray(cachedMsgs)) {
+      messageList.value = cachedMsgs.slice(-MAX_CACHE)
+    }
+    const usersSet = new Set<string>([...cachedUsers, userName.value])
+    groupChatTitle.value = Array.from(usersSet)
+  } catch (e) {
+    console.warn('恢复缓存失败：', e)
+  }
+})
+
+const saveCache = () => {
+  try {
+    const clipped = messageList.value.slice(-MAX_CACHE)
+    localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(clipped))
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(groupChatTitle.value))
+  } catch (e) {
+    console.warn('写入缓存失败：', e)
+  }
+}
+
+watch(messageList, saveCache, { deep: true })
+watch(groupChatTitle, saveCache, { deep: false })
+
 // 发布消息
 const sendMessage = () => {
   const messageData = {
     userName: userName.value,
     message: message.value,
-    isImage: false // 标记是否为图片
+    isImage: false, // 标记是否为图片
   }
   if (message.value.trim()) {
-    client.value.publish('vue3/chat', JSON.stringify(messageData), {
-      qos: 1,
-      retain: false
-    }, (error: any) => {
-      if (error) {
-        console.log('发布失败：', error);
-      } else {
-        console.log('发布成功', message.value);
-        message.value = ''
-      }
-    })
+    client.value.publish(
+      'vue3/chat',
+      JSON.stringify(messageData),
+      {
+        qos: 1,
+        retain: false,
+      },
+      (error: any) => {
+        if (error) {
+          console.log('发布失败：', error)
+        } else {
+          console.log('发布成功', message.value)
+          message.value = ''
+        }
+      },
+    )
   }
 }
 
@@ -96,18 +212,23 @@ const sendImage = (event: Event) => {
       const messageData = {
         userName: userName.value,
         message: base64Image,
-        isImage: true // 标记为图片
+        isImage: true, // 标记为图片
       }
-      client.value.publish('vue3/chat', JSON.stringify(messageData), {
-        qos: 1,
-        retain: false
-      }, (error: any) => {
-        if (error) {
-          console.log('图片发送失败：', error);
-        } else {
-          console.log('图片发送成功');
-        }
-      })
+      client.value.publish(
+        'vue3/chat',
+        JSON.stringify(messageData),
+        {
+          qos: 1,
+          retain: false,
+        },
+        (error: any) => {
+          if (error) {
+            console.log('图片发送失败：', error)
+          } else {
+            console.log('图片发送成功')
+          }
+        },
+      )
     }
     reader.readAsDataURL(file)
   }
@@ -116,7 +237,6 @@ const sendImage = (event: Event) => {
 const getLastChar = (name: string) => {
   return name.slice(-1) // 提取最后一个字
 }
-
 
 const chatMessagesRef = ref<HTMLDivElement | null>(null)
 const handleInputFocus = () => {
@@ -129,64 +249,23 @@ const handleInputFocus = () => {
   // }
 }
 // 监听 messageList 的变化，滚动到最下方
-watch(messageList, () => {
-  if (chatMessagesRef.value) {
-    // 使用 nextTick 确保 DOM 更新完成后再滚动
-    nextTick(() => {
-      chatMessagesRef.value!.scrollTop = chatMessagesRef.value!.scrollHeight
-    })
-  }
-}, { deep: true })
+watch(
+  messageList,
+  () => {
+    if (chatMessagesRef.value) {
+      // 使用 nextTick 确保 DOM 更新完成后再滚动
+      nextTick(() => {
+        chatMessagesRef.value!.scrollTop = chatMessagesRef.value!.scrollHeight
+      })
+    }
+  },
+  { deep: true },
+)
 
 onUnmounted(() => {
   client.value.end()
 })
 </script>
-
-<template>
-  <div>
-    <div class="chat-container">
-      <div class="chat-header">
-        <h3>{{ groupChatTitle.join() }}的匿名聊天室</h3>
-      </div>
-      <div ref="chatMessagesRef" class="chat-messages">
-        <div v-for="(item, index) in messageList" :key="index" :class="['message-item', item.isMe ? 'me' : 'other']">
-          <!-- 头像 -->
-          <div class="avatar" v-if="!item.isMe">
-            {{ getLastChar(item.userName) }}
-          </div>
-          <!-- 消息内容 -->
-          <div v-if="item.isImage" class="message-content">
-            <el-image style="width: 100px; height: 100px" :src="item.message" :zoom-rate="1.2" :max-scale="7"
-              :min-scale="0.2" :preview-src-list="[item.message]" show-progress :initial-index="1" fit="cover"
-              hide-on-click-modal />
-          </div>
-          <div v-else class="message-content">
-            <span v-html="item.message"></span>
-          </div>
-          <!-- 消息时间 -->
-          <div class="message-time">
-            {{ item.time }}
-          </div>
-        </div>
-      </div>
-      <div class="chat-input-container">
-        <div class="chat-input">
-          <input ref="inputRef" v-model="message" placeholder="输入消息..." @keyup.enter="sendMessage"
-            @focus="handleInputFocus" />
-          <button class="emoji-button" @click="toggleEmojiPicker">😀</button>
-          <input type="file" accept="image/*" @change="sendImage" style="display: none;" id="fileInput" />
-          <label for="fileInput" class="image-button">📷</label>
-        </div>
-        <button class="send-button" @click="sendMessage">发送</button>
-        <div v-if="showEmojiPicker" class="emoji-picker-container">
-          <EmojiPicker :native="true" @select="onSelectEmoji" hide-search hide-group-names display-recent
-            disable-sticky-group-names disable-skin-tones />
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
 
 <style scoped>
 .chat-container {
@@ -204,6 +283,26 @@ onUnmounted(() => {
   color: white;
   padding: 10px;
   text-align: center;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.header-names {
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.header-meta {
+  white-space: nowrap;
 }
 
 .chat-messages {
