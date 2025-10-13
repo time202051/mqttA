@@ -4,7 +4,7 @@
       <div class="chat-header">
         <div class="header-title">
           <!-- <span class="header-names">{{ groupChatTitle.join() }}</span> -->
-          <span class="header-meta">{{ userName }}的匿名聊天室（在线：{{ onlineCount }}）</span>
+          <span class="header-meta">{{ userName }}匿名聊天室（在线：{{ onlineCount }}）</span>
         </div>
       </div>
       <div ref="chatMessagesRef" class="chat-messages">
@@ -82,7 +82,7 @@ import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import mqtt from 'mqtt'
 import EmojiPicker from 'vue3-emoji-picker'
 import 'vue3-emoji-picker/css'
-import { getRandomChineseName } from '@/utils/randomChineseName'
+import { getRandomChineseName } from '@/utils/randomChineseName.js'
 
 const STORAGE_KEYS = {
   messages: 'chat_messages',
