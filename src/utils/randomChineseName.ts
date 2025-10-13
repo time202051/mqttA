@@ -1,4 +1,4 @@
-const surnamePool = [
+const surnamePool: string[] = [
   '王',
   '李',
   '张',
@@ -246,7 +246,7 @@ const surnamePool = [
   '拓跋',
 ]
 
-const givenCharPoolA = [
+const givenCharPoolA: string[] = [
   '伟',
   '芳',
   '娜',
@@ -374,7 +374,7 @@ const givenCharPoolA = [
   '瑶',
 ]
 
-const givenCharPoolB = [
+const givenCharPoolB: string[] = [
   '伟',
   '辉',
   '华',
@@ -470,7 +470,7 @@ const givenCharPoolB = [
 ]
 
 // 70% 生成双字名（可同字叠名），30% 单字名
-const makeGivenName = () => {
+const makeGivenName = (): string => {
   const twoChar = Math.random() < 0.7
   if (twoChar) {
     const a = givenCharPoolA[Math.floor(Math.random() * givenCharPoolA.length)]
@@ -483,7 +483,7 @@ const makeGivenName = () => {
   }
 }
 
-export const getRandomChineseName = (suffix = '') => {
+export const getRandomChineseName = (suffix: string = ''): string => {
   const surname = surnamePool[Math.floor(Math.random() * surnamePool.length)]
   const given = makeGivenName()
   return suffix ? `${surname}${given}·${suffix}` : `${surname}${given}`

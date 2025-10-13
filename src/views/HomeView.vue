@@ -82,7 +82,7 @@ import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import mqtt from 'mqtt'
 import EmojiPicker from 'vue3-emoji-picker'
 import 'vue3-emoji-picker/css'
-import { getRandomChineseName } from '../utils/randomChineseName.js'
+import { getRandomChineseName } from '@/utils/randomChineseName'
 
 const STORAGE_KEYS = {
   messages: 'chat_messages',
