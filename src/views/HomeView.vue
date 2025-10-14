@@ -225,7 +225,7 @@ watch(groupChatTitle, saveCache, { deep: false })
 // 添加声音提示
 const playNotificationSound = () => {
   // 创建一个简单的提示音
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+  const audioContext = new window.AudioContext()
   const oscillator = audioContext.createOscillator()
   const gainNode = audioContext.createGain()
 
