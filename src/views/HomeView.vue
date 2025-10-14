@@ -13,14 +13,18 @@
           :key="index"
           :class="['message-item', item.isMe ? 'me' : 'other']"
         >
+          <!-- 时间显示（微信风格，居中显示） -->
+          <div v-if="shouldShowTime(item, index)" class="time-divider">
+            {{ formatTime(item.time) }}
+          </div>
+
           <!-- 头像 -->
-          <div class="avatar" v-if="!item.isMe">
+          <div class="name" v-if="!item.isMe">
             {{ item.userName }}
           </div>
           <!-- 消息内容 -->
-          <div v-if="item.isImage" class="message-content">
+          <div v-if="item.isImage" class="message-content image-message">
             <el-image
-              style="width: 100px; height: 100px"
               :src="item.message"
               :zoom-rate="1.2"
               :max-scale="7"
@@ -33,23 +37,32 @@
             />
           </div>
           <div v-else class="message-content">
-            <span v-html="item.message"></span>
+            {{ item.message }}
+            <!-- <span v-html="item.message"></span> -->
           </div>
           <!-- 消息时间 -->
-          <div class="message-time">
+          <!-- <div class="message-time">
             {{ item.time }}
-          </div>
+          </div> -->
         </div>
       </div>
       <div class="chat-input-container">
         <div class="chat-input">
-          <input
+          <textarea
+            ref="inputRef"
+            v-model="message"
+            @keyup.enter="handleKeyDown"
+            @focus="handleInputFocus"
+            class="message-input"
+          />
+          <!-- <input
             ref="inputRef"
             v-model="message"
             placeholder="输入消息..."
             @keyup.enter="sendMessage"
             @focus="handleInputFocus"
-          />
+            class="message-input"
+          /> -->
           <button class="emoji-button" @click="toggleEmojiPicker">😀</button>
           <input
             type="file"
@@ -119,19 +132,66 @@ client.value.on('connect', () => {
   client.value.subscribe('vue3/chat')
 })
 
-client.value.on('message', (topic: any, payload: any) => {
-  console.log('订阅当前主题：', topic, JSON.parse(payload.toString()))
-  const info = JSON.parse(payload.toString())
-  messageList.value.push({
-    ...info,
-    time: new Date().toLocaleString(),
-    message: info.message,
-    isMe: info.userName === userName.value,
-    isImage: info.isImage, // 标记是否为图片
-  })
-  if (!groupChatTitle.value.includes(info.userName)) {
-    groupChatTitle.value.push(info.userName)
+// 添加通知相关功能
+const isPageVisible = ref(true)
+const originalTitle = document.title
+
+// 请求通知权限
+const requestNotificationPermission = async () => {
+  if ('Notification' in window) {
+    const permission = await Notification.requestPermission()
+    return permission === 'granted'
   }
+  return false
+}
+
+// 显示通知
+const showNotification = (title: string, body: string) => {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, {
+      body: body,
+      icon: '/favicon.ico', // 使用你的图标
+      tag: 'chat-message', // 防止重复通知
+    })
+  }
+}
+
+// 页面标题闪烁
+const flashTitle = (message: string) => {
+  let flashCount = 0
+  const maxFlashes = 3
+
+  const flash = () => {
+    if (flashCount < maxFlashes) {
+      document.title = document.title === originalTitle ? `💬 ${message}` : originalTitle
+      flashCount++
+      setTimeout(flash, 1000)
+    } else {
+      document.title = originalTitle
+    }
+  }
+
+  flash()
+}
+
+// 监听页面可见性变化
+const handleVisibilityChange = () => {
+  isPageVisible.value = !document.hidden
+  if (!document.hidden) {
+    document.title = originalTitle
+  }
+}
+
+// 在组件挂载时请求通知权限
+onMounted(async () => {
+  await requestNotificationPermission()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+// 在组件卸载时清理
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  client.value.end()
 })
 
 onMounted(() => {
@@ -162,6 +222,55 @@ const saveCache = () => {
 watch(messageList, saveCache, { deep: true })
 watch(groupChatTitle, saveCache, { deep: false })
 
+// 添加声音提示
+const playNotificationSound = () => {
+  // 创建一个简单的提示音
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+  const oscillator = audioContext.createOscillator()
+  const gainNode = audioContext.createGain()
+
+  oscillator.connect(gainNode)
+  gainNode.connect(audioContext.destination)
+
+  oscillator.frequency.setValueAtTime(800, audioContext.currentTime)
+  oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1)
+
+  gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+
+  oscillator.start(audioContext.currentTime)
+  oscillator.stop(audioContext.currentTime + 0.3)
+}
+
+// 在消息接收时添加声音提示
+client.value.on('message', (topic: any, payload: any) => {
+  console.log('订阅当前主题：', topic, JSON.parse(payload.toString()))
+  const info = JSON.parse(payload.toString())
+
+  // 只对不是自己发送的消息进行提示
+  if (info.userName !== userName.value) {
+    // 播放提示音
+    playNotificationSound()
+
+    // 如果页面不可见，显示通知和标题闪烁
+    if (!isPageVisible.value) {
+      showNotification(`新消息来自 ${info.userName}`, info.isImage ? '[图片]' : info.message)
+      flashTitle(`新消息来自 ${info.userName}`)
+    }
+  }
+
+  messageList.value.push({
+    ...info,
+    time: new Date().toLocaleString(),
+    message: info.message,
+    isMe: info.userName === userName.value,
+    isImage: info.isImage, // 标记是否为图片
+  })
+  if (!groupChatTitle.value.includes(info.userName)) {
+    groupChatTitle.value.push(info.userName)
+  }
+})
+
 // 发布消息
 const sendMessage = () => {
   const messageData = {
@@ -183,12 +292,20 @@ const sendMessage = () => {
         } else {
           console.log('发布成功', message.value)
           message.value = ''
+          inputRef.value?.focus()
         }
       },
     )
   }
 }
-
+const handleKeyDown = (event: KeyboardEvent) => {
+  // 如果按的是 Enter 键且没有按 Shift 键，发送消息
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    sendMessage()
+  }
+  // 如果按的是 Enter + Shift，允许换行
+}
 // 选择表情包
 const onSelectEmoji = (emoji: any) => {
   message.value += emoji.i
@@ -234,10 +351,6 @@ const sendImage = (event: Event) => {
   }
 }
 
-const getLastChar = (name: string) => {
-  return name.slice(-1) // 提取最后一个字
-}
-
 const chatMessagesRef = ref<HTMLDivElement | null>(null)
 const handleInputFocus = () => {
   // console.log('focus');
@@ -247,6 +360,78 @@ const handleInputFocus = () => {
   //     chatMessagesRef.value!.scrollTop = chatMessagesRef.value!.scrollHeight
   //   })
   // }
+}
+// 判断是否应该显示时间
+const shouldShowTime = (currentItem: any, currentIndex: number) => {
+  // 第一条消息总是显示时间
+  if (currentIndex === 0) return true
+
+  const currentTime = new Date(currentItem.time)
+  const prevItem = messageList.value[currentIndex - 1]
+  const prevTime = new Date(prevItem.time)
+
+  // 计算时间差（分钟）
+  const timeDiff = (currentTime.getTime() - prevTime.getTime()) / (1000 * 60)
+
+  // 如果时间间隔超过5分钟，显示时间
+  return timeDiff > 5
+}
+
+// 格式化时间显示
+const formatTime = (timeString: string) => {
+  const date = new Date(timeString)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+  // 如果是今天，直接显示时：分
+  if (messageDate.getTime() === today.getTime()) {
+    return date.toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  }
+
+  // 如果是昨天
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (messageDate.getTime() === yesterday.getTime()) {
+    const hour = date.getHours().toString().padStart(2, '0')
+    const minute = date.getMinutes().toString().padStart(2, '0')
+    return `昨天 ${hour}:${minute}`
+  }
+
+  // 计算时间差（天）
+  const timeDiff = (today.getTime() - messageDate.getTime()) / (1000 * 60 * 60 * 24)
+
+  // 如果是一周内（2-7天前），显示"周X 时：分"
+  if (timeDiff >= 2 && timeDiff <= 7) {
+    const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+    const weekday = weekdays[date.getDay()]
+    const hour = date.getHours().toString().padStart(2, '0')
+    const minute = date.getMinutes().toString().padStart(2, '0')
+    return `${weekday} ${hour}:${minute}`
+  }
+
+  // 如果超过一周，显示"x月x日 时：分"格式
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const hour = date.getHours().toString().padStart(2, '0')
+  const minute = date.getMinutes().toString().padStart(2, '0')
+
+  return `${month}月${day}日 ${hour}:${minute}`
+}
+
+// 自动调整输入框高度
+const adjustInputHeight = () => {
+  const input = inputRef.value
+  if (input) {
+    input.style.height = 'auto'
+    const scrollHeight = input.scrollHeight
+    const maxHeight = 140 // 7行的高度 (20px * 7)
+    input.style.height = Math.min(scrollHeight, maxHeight) + 'px'
+  }
 }
 // 监听 messageList 的变化，滚动到最下方
 watch(
@@ -261,6 +446,17 @@ watch(
   },
   { deep: true },
 )
+// 监听消息内容变化，自动调整高度
+watch(message, () => {
+  nextTick(() => {
+    adjustInputHeight()
+  })
+})
+
+// 在组件挂载后也调整一次高度
+onMounted(() => {
+  adjustInputHeight()
+})
 
 onUnmounted(() => {
   client.value.end()
@@ -279,10 +475,11 @@ onUnmounted(() => {
 }
 
 .chat-header {
-  background-color: #42b983;
-  color: white;
+  background-color: #ededed;
+  color: #292828;
   padding: 10px;
   text-align: center;
+  border-bottom: 1px solid #ddd;
 }
 
 .header-title {
@@ -309,6 +506,13 @@ onUnmounted(() => {
   flex: 1;
   padding: 10px;
   overflow-y: auto;
+  background-color: #ededed;
+}
+.chat-messages .name {
+  color: #8e8e93; /* 微信风格的浅灰色 */
+  font-size: 11px; /* 稍微小一点的字体 */
+  font-weight: 400; /* 正常字重 */
+  margin-bottom: 2px; /* 与消息内容保持适当间距 */
 }
 
 .message-item {
@@ -327,34 +531,63 @@ onUnmounted(() => {
 
 .message-content {
   max-width: 70%;
-  padding: 10px;
+  padding: 9px;
+  box-sizing: border-box;
   border-radius: 8px;
   position: relative;
+  /* 添加换行相关属性 */
+  word-wrap: break-word; /* 自动换行 */
+  word-break: break-word; /* 优先在单词边界换行 */
+  overflow-wrap: break-word; /* 现代浏览器的换行属性 */
+  white-space: pre-wrap; /* 保留换行符和空格 */
 }
 
 .message-item.me .message-content {
-  background-color: #42b983;
-  color: white;
+  background-color: #95ec69;
+  color: #292828;
   border-bottom-right-radius: 0;
 }
 
 .message-item.other .message-content {
   background-color: white;
-  color: #333;
+  color: #292828;
   border-bottom-left-radius: 0;
 }
 
-.message-time {
+.time-divider {
+  width: 100%;
+  text-align: center;
+  margin: 10px 0;
   font-size: 12px;
   color: #999;
-  margin-top: 5px;
+  position: relative;
 }
+/*
+.time-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #e5e5e5;
+  z-index: 1;
+}
+
+.time-divider {
+  background-color: #f5f5f5;
+  padding: 4px 12px;
+  border-radius: 4px;
+  display: inline-block;
+  position: relative;
+  z-index: 2;
+} */
 
 .chat-input-container {
   display: flex;
   align-items: flex-end;
   padding: 8px;
-  background-color: white;
+  background-color: #ededed;
   border-top: 1px solid #ddd;
   position: relative;
 }
@@ -362,7 +595,7 @@ onUnmounted(() => {
 .chat-input {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   margin-right: 10px;
 }
 
@@ -389,6 +622,7 @@ onUnmounted(() => {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  margin-bottom: 2px;
 }
 
 .send-button:hover {
@@ -404,5 +638,50 @@ onUnmounted(() => {
   border: 1px solid #ddd;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.message-content.image-message {
+  width: 70%;
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* 或者更具体地针对发送者和接收者的图片消息 */
+.message-item.me .message-content.image-message {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+.message-item.other .message-content.image-message {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+.message-input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-right: 10px;
+  resize: none; /* 禁止手动调整大小 */
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  min-height: 20px; /* 最小高度 */
+  max-height: 140px; /* 最大高度约7行 (20px * 7) */
+  overflow-y: auto; /* 超出时显示滚动条 */
+}
+
+:deep(.el-image-viewer__mask) {
+  opacity: 0.9;
+}
+.image-button {
+  margin-bottom: 13px;
 }
 </style>
